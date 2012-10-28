@@ -13,6 +13,7 @@
 [int]$sid_output = 1;                   # output mode for user SIDs
                                         ## 0 - do not print user SID
                                         ## 1 - print user SID
+[String]$syntax = ".\$FileName [-domain <domain name>] [-printSID {true | false}] [-printSID {true | false}] [-printSID {true | false}]"
 
 # Main function
 function main {
@@ -47,7 +48,7 @@ function syntax_error {
 
 # in the event of a syntax error
 function print_help {
-    $help_msg =  "Syntax: $filename [-sSnNmMuhv] [-l | -d domain] group_name`n"
+    $help_msg =  "Syntax: $filename [-d domain_name] group_name`n"
     $help_msg += "Options:`n"
     
     Write-Host $help_msg
