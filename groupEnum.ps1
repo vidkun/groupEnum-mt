@@ -16,18 +16,21 @@
 
 # Main function
 function main {
-	
-    
+
     [String]$rootGroup = "";
     [string]$output_args = "";
     [string]$serachScope = "local";     # local (default) or domain to query
     
-    print_help
+#    print_help
     # parse arguments
+    Write-Host $args.count
+    if ($args.length -lt 1) { syntax_error }
     $i = 0;
 	foreach ($arg in $args) {
-        $i++
-        if ($i = $args.size) {
+        $i++                            # keep track of position in args array
+        # store last argument as group name
+        if ($i -eq $args.length) {
+            #if ($arg[0] -eq "-") { syntax_error }
             $rootGroup = $arg
 		}
 	}
@@ -37,7 +40,7 @@ function main {
 # in the event of a syntax error
 function syntax_error {
     $err_msg =  "Usage Error`n"
-    $err_msg += "Syntax: $filename [-smuhv] [-l | -d domain] group_name`n"
+    $err_msg += "Syntax: $filename [-sSnNmMuhv] [-l | -d domain] group_name`n"
     $host.ui.WriteErrorLine($err_msg)
     Exit
 }
@@ -47,7 +50,7 @@ function print_help {
     $help_msg =  "Syntax: $filename [-sSnNmMuhv] [-l | -d domain] group_name`n"
     $help_msg += "Options:`n"
     
-    Write-Host $err_msg
+    Write-Host $help_msg
     Exit
 }
 
