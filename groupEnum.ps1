@@ -7,7 +7,7 @@
 #define parameters
 param(
     [alias("d")]
-    [string]$domain     = "localhost",
+    [string]$domain     = $env:computername,
     [string]$printName  = "true",
     [string]$printSID   = "false",
     [string]$printGroup = "false",
@@ -28,94 +28,128 @@ $syntax += " -group <group name>"
 function main {
     
     # check that group exists
-    $rootGroupObj = new-object System.Security.Principal.NTAccount($domain, $rootGroupName)
-    $isValid = isGroup($rootGroupObj)
-    if ( $isValid -eq "False" ) {
+    if ($domain -eq $env:computername) {
+        $rootGroupObj = new-object System.Security.Principal.NTAccount($rootGroupName)
+	} else {
+        $rootGroupObj = new-object System.Security.Principal.NTAccount($domain, $rootGroupName)
+	}
+    [boolean]$isValid = isGroup($rootGroupObj)
+    if ( $isValid -eq $false ) {
         $acct = $rootGroupObj.ToString()
         $host.ui.WriteErrorLine("Error: $acct is not a valid account")
         Exit
 	}
     
     # recursivley get members
-    $rootName = $rootGroupObj.ToString().Split("\")[1] 
-    $global:userList = New-Object System.Collections.ArrayList
-    $global:groupStack = New-Object System.Collections.Stack
-    $sid = getSID($rootGroupObj)
-    $global:groupStack.Push(@{ "ntobj" = $rootGroupObj; "name" = "$rootName"; "path" = "\"; "sid" = $sid})
-    while($global:groupStack.Count -ne 0) {
+    if ($rootGroupObj.ToString().Contains("\")) {
+        $rootName = $rootGroupObj.ToString().Split("\")[1]
+	} else {
+        $rootName = $rootGroupObj.ToString()
+	}
+    
+    $userTable = New-Object System.Collections.HashTable
+    $groupStack = New-Object System.Collections.Stack
+    $rootNtObj = @{ "ntobj" = $rootGroupObj;
+                    "name" = $rootName;
+                    "path" = "\";
+                    "sid" = getSID($rootGroupObj);
+                    "domain" = $domain
+	}
+    $groupStack.Push($rootNtObj)
+    while($groupStack.Count -gt 0) {
         # get the current group info
-        $currGroup = $global:groupStack.Pop()
+        $currGroup = $groupStack.Pop()
+        # set path for children
         $path = $currGroup["path"] + $currGroup["name"]  + "\"
         #Write-Host $currGroup["name"]
         # Get members of group
-        $winnt = "WinNT://" + $domain + "/" + $currGroup["name"] + ",group" 
+        $winnt = "WinNT://" + $currGroup["domain"] + "/" + $currGroup["name"] + ",group" 
         $group =[ADSI]"$winnt"
         $members = @($group.psbase.Invoke("Members"))
         $members | foreach { 
             $memName = $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)
-            #Write-Host "$memName"
-            $currObj = new-object System.Security.Principal.NTAccount($domain, $memName)
-            $isAGroup = isGroup($currObj)
-            #Write-Host $isAGroup
-            $isAUser = isUser($currObj)
-            #Write-Host $isAUser
-            if ( $isAGroup -ne "True" ) {
-                #Write-Host "group -> $memname"
-                $sid = getSID($currObj)
-                $global:groupStack.Push(@{ "ntobj" = $currObj; "name" = "$memName"; "path" = $path; "sid" = $sid})
-			} elseif ( $isAUser -ne "True" ) {
-                #Write-Host "user -> $memname"
-                $sid = getSID($currObj)
-                Write-Host $sid
-                $global:userList.Add(@{ "ntobj" = $currObj; "name" = "$memName"; "path" = $path; "sid" = $sid})
+            $memdom = $_.GetType().InvokeMember("Parent", 'GetProperty', $null, $_, $null).split("/")[-1]
+            if ($memdom -eq $env:computername) {
+                $currObj = new-object System.Security.Principal.NTAccount($memName)
+	        } else {
+                $currObj = new-object System.Security.Principal.NTAccount($memdom, $memName)
+	        }
+
+            $sid = getSID($currObj)
+            $newObj = @{    "ntobj" = $currObj;
+                            "name" = $memName;
+                            "path" = $path;
+                            "sid" = $sid;
+                            "domain" = $memdom
+            }
+            # if member is a group, add it to the stack
+            if ( isGroup($currObj) ) {
+                $groupStack.Push($newObj)
+            # if member is a 
+			} elseif ( isUser($currObj) ) {
+                if ($userTable.Contains($newObj['sid']) -ne $true) {
+                    $userTable.Add($newObj['sid'], $newObj)
+				}
 			}
         }
 	}
-	
+
     # print users
-    foreach ($user in $global:userList) {
-        $output = ""
-        
-        if ($printGroup -eq "true") { $output += $user['path']}
-        if ($printName -eq "true") { $output += $user['name']}
+    $out = New-Object System.Collections.ArrayList
+    foreach ($user in $userTable.Values) {
+        $line = ""
+        if ($printGroup -eq "true") { $line += $user['path']}
+        if ($printName -eq "true") { $line += $user['name']}
         if ($printSID -eq "true") { 
-            if ($printGroup -eq "true" -or $printName -eq "true") { $output += ',' }
-            $output += $user['sid']
+            if ($printGroup -eq "true" -or $printName -eq "true") { $line += ',' }
+            $line += $user['sid']
         }
-        Write-Host $output
-	}
+        [void]$out.Add($line)
+    }
+    $out | Sort-Object | Write-Host
 }
 
 
 
 # determine if NT Object is a group
-function isGroup([System.Security.Principal.NTAccount]$ntObj) {
+function isGroup([System.Security.Principal.NTAccount]$o) {
     
-    ($d, $g) = $rootGroupObj.ToString().split("\")
+    ($d, $g) = $o.ToString().split("\")
+
+    if ($g -eq $null) {
+        $g = $d;
+        $d = $ENV:COMPUTERNAME;
+	}
     try {
-        $result = [System.DirectoryServices.DirectoryEntry]::Exists("WinNT://$d/$g,group")
-        return "$result"
+        [boolean]$result = [System.DirectoryServices.DirectoryEntry]::Exists("WinNT://$d/$g,group")
+        return $result
 	} catch {
-        return "False"
+        return $false
 	}
 }
 
 # determine if NT Object is a user
-function isUser([System.Security.Principal.NTAccount]$ntObj) {
+function isUser([System.Security.Principal.NTAccount]$o) {
     
-    ($d, $g) = $rootGroupObj.ToString().split("\")
+    ($d, $g) = $o.ToString().split("\")
+
+    if ($g -eq $null) {
+        $g = $d;
+        $d = $ENV:COMPUTERNAME;
+	}
     try {
         $result = [System.DirectoryServices.DirectoryEntry]::Exists("WinNT://$d/$g,user")
-        return "$result"
+        return $result
 	} catch {
-        return "False"
+        return $false
 	}
 }
 
-function getSID([System.Security.Principal.NTAccount]$ntObj) {
+# translate NTAccount object to SID
+function getSID([System.Security.Principal.NTAccount]$o) {
     try {
-    $sid = $ntObj.Translate([System.Security.Principal.SecurityIdentifier])
-	} catch {}
+    $sid = $o.Translate([System.Security.Principal.SecurityIdentifier])
+	} catch { }
     return $sid.value
 }
 
@@ -131,7 +165,6 @@ function syntax_error {
 function print_help {
     $help_msg =  "Syntax: $syntax"
 
-    Write-Host $help_msg
     Exit
 }
 
