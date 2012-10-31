@@ -50,8 +50,8 @@ function main {
     $userTable = New-Object System.Collections.HashTable
     $groupStack = New-Object System.Collections.Stack
     $rootNtObj = @{ "ntobj" = $rootGroupObj;
-                    "name" = $rootName;
-                    "path" = "\";
+                    "name" = "\" + $rootName;
+                    "path" = "";
                     "sid" = getSID($rootGroupObj);
                     "domain" = $domain
 	}
@@ -60,8 +60,7 @@ function main {
         # get the current group info
         $currGroup = $groupStack.Pop()
         # set path for children
-        $path = $currGroup["path"] + $currGroup["name"]  + "\"
-        #Write-Host $currGroup["name"]
+        $path = $currGroup["path"] + $currGroup["name"] 
         # Get members of group
         $winnt = "WinNT://" + $currGroup["domain"] + "/" + $currGroup["name"] + ",group" 
         $group =[ADSI]"$winnt"
@@ -77,7 +76,7 @@ function main {
 
             $sid = getSID($currObj)
             $newObj = @{    "ntobj" = $currObj;
-                            "name" = $memName;
+                            "name" = "\" + $memName;
                             "path" = $path;
                             "sid" = $sid;
                             "domain" = $memdom
@@ -97,7 +96,7 @@ function main {
     # print users
     $out = New-Object System.Collections.ArrayList
     foreach ($user in $userTable.Values) {
-        $line = ""
+        $line = "\" + $user['domain']
         if ($printGroup -eq "true") { $line += $user['path']}
         if ($printName -eq "true") { $line += $user['name']}
         if ($printSID -eq "true") { 
@@ -106,7 +105,7 @@ function main {
         }
         [void]$out.Add($line)
     }
-    $out | Sort-Object | Write-Host
+    $out | Sort-Object
 }
 
 
@@ -164,7 +163,7 @@ function syntax_error {
 # in the event of a syntax error
 function print_help {
     $help_msg =  "Syntax: $syntax"
-
+    Write-Host $help_msg
     Exit
 }
 
