@@ -7,10 +7,12 @@
 #define parameters
 param(
     [alias("d")]
-    [string]$domain     = $env:computername,
-    [string]$printName  = "true",
-    [string]$printSID   = "false",
-    [string]$printGroup = "false",
+    [string]$domain           = $env:computername,
+    [string]$printName        = "true",
+    [string]$printSID         = "false",
+    [string]$printGroup       = "false",
+    [string]$printDisabled    = "true",
+    [string]$printPasswordAge = "false",
     [Parameter(Mandatory=$true)][alias("g","group")]$rootGroupName
 );
 
@@ -86,6 +88,11 @@ function main {
                 $groupStack.Push($newObj)
             # if member is a 
 			} elseif ( isUser($currObj) ) {
+                # check if user is disabled
+                $winnt = "WinNT://" + $newObj['domain'] +"/" + $newObj['name'] + ",user"
+                $newObj["disabled"] = ([ADSI]"$winnt").InvokeGet('AccountDisabled')
+                # get password age
+                $newObj["passwd_age"] = [math]::Round(([ADSI]"$winnt").InvokeGet('PasswordAge') / 86400 )
                 if ($userTable.Contains($newObj['sid']) -ne $true) {
                     $userTable.Add($newObj['sid'], $newObj)
 				}
@@ -97,12 +104,14 @@ function main {
     $out = New-Object System.Collections.ArrayList
     foreach ($user in $userTable.Values) {
         $line = "\" + $user['domain']
-        if ($printGroup -eq "true") { $line += $user['path']}
-        if ($printName -eq "true") { $line += $user['name']}
-        if ($printSID -eq "true") { 
-            if ($printGroup -eq "true" -or $printName -eq "true") { $line += ',' }
+        if ($printGroup -like "true") { $line += $user['path']}
+        if ($printName -like "true") { $line += $user['name']}
+        if ($printSID -like "true") { 
+            if ($printGroup -like "true" -or $printName -like "true") { $line += ',' }
             $line += $user['sid']
         }
+        if ($printPasswordAge -like "true") { $line += " (Password Age = " + $user["passwd_age"] + " days)" }
+        if (($printDisabled -like "true") -and $user["disabled"]) { $line += " [DISABLED]" }
         [void]$out.Add($line)
     }
     $out | Sort-Object
