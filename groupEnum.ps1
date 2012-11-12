@@ -1,45 +1,35 @@
 ﻿[CmdletBinding(SupportsShouldProcess=$true)]
 <#
 .NAME
-groupEmun.ps1
-
+    groupEmun.ps1
 .SYNOPSIS
-Enumerate Windows group membership
-
+    Enumerate Windows group membership
 .DESCRIPTION
-groupEnum will recursivley enumerate the membership of any specfifed group, returning a list of users only (no groups).
-
+    groupEnum will recursivley enumerate the membership of any specfifed group, returning a list of users only (no groups).
 .SYNTAX
-groupEmun.ps1 [-d | -domain <domain name>] [-printName {true | false}] [-printSID {true | false}] [-printGroup {true | false}] $syntax += " [-printDisabled {true | false}] [-printPasswordAge {true | false}] {-g | -group} <group name>
-
+    groupEmun.ps1 [-d | -domain <domain name>] [-printName {true | false}] [-printSID {true | false}] [-printGroup {true | false}] $syntax += " [-printDisabled {true | false}] [-printPasswordAge {true | false}] {-g | -group} <group name>
 .PARAMETER d
-domain of root group. Default: localhost
-
+    domain of root group. Default: localhost
 .PARAMETER printName
-{true|false} Display user name. Default: true
-
+    {true|false} Display user name. Default: true
 .PARAMETER printSID
-{true|false} Display user SID. Default: false
-
+    {true|false} Display user SID. Default: false
 .PARAMETER printGroup 
-true|false} Display inheritance chain. Default: false
-
+    {true|false} Display inheritance chain. Default: false
 .PARAMETER printDisabled 
-true|false} Print whether or not the group is disabled. Default: true
-
+    {true|false} Print whether or not the group is disabled. Default: true
 .PARAMETER printPasswordAge 
-true|false} Print age of user's password in days. Default: false
-
+    {true|false} Print age of user's password in days. Default: false
 .PARAMETER g -group -rootGroupName
-<group name> group which to enumerate membership"
-
+    <group name> group which to enumerate membership"
 .LINK
-https://github.com/Doct0rZ/groupEnum
-
+    https://github.com/Doct0rZ/groupEnum
 .NOTES
-groupEnum.ps1
-Author: Neil Zimmerman (ncztch@rit.edu)
-Date: 10.11.2012
+    Author: Neil Zimmerman (ncztch@rit.edu)
+    Date: 10.11.2012
+.EXAMPLE
+    .\groupEnum.ps1 -g "Administrators"
+    This will dsiplay all of the users that inherit permissions from local Administrators group
 #>
 
 
@@ -101,7 +91,7 @@ function main {
         $winnt = "WinNT://" + $currGroup["domain"] + "/" + $currGroup["name"] + ",group" 
         $group = [ADSI]"$winnt"
         $members = @($group.psbase.Invoke("Members"))
-        Write-Verbose ("Getting members of group: \\" + $currGroup['domain'] + $currGroup['name'])
+        Write-Verbose ("Getting members of group: \" + $currGroup['domain'] + $currGroup['name'])
         $members | foreach { 
             $memName = $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)
             $memdom = $_.GetType().InvokeMember("Parent", 'GetProperty', $null, $_, $null).split("/")[-1]
@@ -120,11 +110,11 @@ function main {
             }
             # if member is a group, add it to the stack
             if ( isGroup($currObj) ) {
-                Write-Verbose ("Found group: \\" + $newObj['domain'] + $newObj['name'])
+                Write-Verbose ("Found group: \" + $newObj['domain'] + $newObj['name'])
                 $groupStack.Push($newObj)
             # if member is a 
 			} elseif ( isUser($currObj) ) {
-                Write-Verbose ("Found user: \\" + $newObj['domain'] + $newObj['name'])
+                Write-Verbose ("Found user: \" + $newObj['domain'] + $newObj['name'])
                 # check if user is disabled
                 $winnt = "WinNT://" + $newObj['domain'] +"/" + $newObj['name'] + ",user"
                 $newObj["disabled"] = ([ADSI]"$winnt").AccountDisabled
