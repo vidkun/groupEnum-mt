@@ -1,8 +1,47 @@
-﻿# groupEnum.ps1
-# Enumerate Windows group membership
-#
-# Author: Neil Zimmerman (ncztch@rit.edu)
-# Date: 10.11.2012
+﻿[CmdletBinding(SupportsShouldProcess=$true)]
+<#
+.NAME
+groupEmun.ps1
+
+.SYNOPSIS
+Enumerate Windows group membership
+
+.DESCRIPTION
+groupEnum will recursivley enumerate the membership of any specfifed group, returning a list of users only (no groups).
+
+.SYNTAX
+groupEmun.ps1 [-d | -domain <domain name>] [-printName {true | false}] [-printSID {true | false}] [-printGroup {true | false}] $syntax += " [-printDisabled {true | false}] [-printPasswordAge {true | false}] {-g | -group} <group name>
+
+.PARAMETER d
+domain of root group. Default: localhost
+
+.PARAMETER printName
+{true|false} Display user name. Default: true
+
+.PARAMETER printSID
+{true|false} Display user SID. Default: false
+
+.PARAMETER printGroup 
+true|false} Display inheritance chain. Default: false
+
+.PARAMETER printDisabled 
+true|false} Print whether or not the group is disabled. Default: true
+
+.PARAMETER printPasswordAge 
+true|false} Print age of user's password in days. Default: false
+
+.PARAMETER g -group -rootGroupName
+<group name> group which to enumerate membership"
+
+.LINK
+https://github.com/Doct0rZ/groupEnum
+
+.NOTES
+groupEnum.ps1
+Author: Neil Zimmerman (ncztch@rit.edu)
+Date: 10.11.2012
+#>
+
 
 #define parameters
 param(
@@ -18,11 +57,6 @@ param(
 
 # declare some variables
 [String]$FileName = "groupEnum.ps1";    # name of the script file
-
-# syntax help string
-$syntax = ".\$FileName [-domain <domain name>] [-printName {true | false}]"
-$syntax += " [-printSID {true | false}] [-printGroup {true | false}]"
-$syntax += " -group <group name>"
 
 
 
@@ -65,8 +99,9 @@ function main {
         $path = $currGroup["path"] + $currGroup["name"] 
         # Get members of group
         $winnt = "WinNT://" + $currGroup["domain"] + "/" + $currGroup["name"] + ",group" 
-        $group =[ADSI]"$winnt"
+        $group = [ADSI]"$winnt"
         $members = @($group.psbase.Invoke("Members"))
+        Write-Verbose ("Getting members of group: \\" + $currGroup['domain'] + $currGroup['name'])
         $members | foreach { 
             $memName = $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)
             $memdom = $_.GetType().InvokeMember("Parent", 'GetProperty', $null, $_, $null).split("/")[-1]
@@ -85,12 +120,14 @@ function main {
             }
             # if member is a group, add it to the stack
             if ( isGroup($currObj) ) {
+                Write-Verbose ("Found group: \\" + $newObj['domain'] + $newObj['name'])
                 $groupStack.Push($newObj)
             # if member is a 
 			} elseif ( isUser($currObj) ) {
+                Write-Verbose ("Found user: \\" + $newObj['domain'] + $newObj['name'])
                 # check if user is disabled
                 $winnt = "WinNT://" + $newObj['domain'] +"/" + $newObj['name'] + ",user"
-                $newObj["disabled"] = ([ADSI]"$winnt").InvokeGet('AccountDisabled')
+                $newObj["disabled"] = ([ADSI]"$winnt").AccountDisabled
                 # get password age
                 $newObj["passwd_age"] = [math]::Round(([ADSI]"$winnt").InvokeGet('PasswordAge') / 86400 )
                 if ($userTable.Contains($newObj['sid']) -ne $true) {
@@ -159,21 +196,6 @@ function getSID([System.Security.Principal.NTAccount]$o) {
     $sid = $o.Translate([System.Security.Principal.SecurityIdentifier])
 	} catch { }
     return $sid.value
-}
-
-# in the event of a syntax error
-function syntax_error {
-    $err_msg =  "Usage Error`n"
-    $err_msg += "Syntax: $syntax`n"
-    $host.ui.WriteErrorLine($err_msg)
-    Exit
-}
-
-# in the event of a syntax error
-function print_help {
-    $help_msg =  "Syntax: $syntax"
-    Write-Host $help_msg
-    Exit
 }
 
 # call main if script called directly
