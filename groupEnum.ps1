@@ -123,6 +123,13 @@ function main {
                 if ($userTable.Contains($newObj['sid']) -ne $true) {
                     $userTable.Add($newObj['sid'], $newObj)
 				}
+			} elseif ($memdom -eq "NT AUTHORITY") {
+                Write-Verbose ("Found object: " + $newObj['domain'] + $newObj['name'])
+                $newObj["disabled"] = $false
+                $newObj["passwd_age"] = "N/A"
+                if ($userTable.Contains($newObj['sid']) -ne $true) {
+                    $userTable.Add($newObj['sid'], $newObj)
+				}
 			}
         }
 	}
