@@ -126,7 +126,7 @@ function main {
 			} elseif ($memdom -eq "NT AUTHORITY") {
                 Write-Verbose ("Found object: " + $newObj['domain'] + $newObj['name'])
                 $newObj["disabled"] = $false
-                $newObj["passwd_age"] = "N/A"
+                $newObj["passwd_age"] = "-1"
                 if ($userTable.Contains($newObj['sid']) -ne $true) {
                     $userTable.Add($newObj['sid'], $newObj)
 				}
