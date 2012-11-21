@@ -13,6 +13,7 @@ domain groups, and can even move between multiple domains so long as you have
 permission to read group membership.
 
 Options:
+
     -d <domain name>                specify the domain of the group you which
                                     to enumerate membership of, default: local
                                     
@@ -35,6 +36,7 @@ Options:
                                     days, default: false
                                     
 Examples:
+
     .\groupEnum.ps1 -g "Administrators"
         Prints the name of each user inheriting membership from local admins
     
