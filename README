@@ -1,3 +1,8 @@
+Based on the original groupEnum from Doct0rZ (original readme below). Attempting to modify it to iterate 
+through a list of hosts and write results to a file. 
+
+========================================
+
 #########################################
 #             groupEmum.ps1             #
 # Windows Group Membership Enumeration  #
