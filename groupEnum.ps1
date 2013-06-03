@@ -66,6 +66,9 @@ function main {
         Exit
 	}
     
+    $machines = get-content .\hosts.txt
+    foreach ($ComputerName in $machines) {
+    
     # recursivley get members
     if ($rootGroupObj.ToString().Contains("\")) {
         $rootName = $rootGroupObj.ToString().Split("\")[1]
@@ -137,7 +140,7 @@ function main {
     # print users
     $out = New-Object System.Collections.ArrayList
     foreach ($user in $userTable.Values) {
-        $line = "\" + $user['domain']
+        $line = $ComputerName + ": " + "\" + $user['domain']
         if ($printGroup -like "true") { $line += $user['path']}
         if ($printName -like "true") { $line += $user['name']}
         if ($printSID -like "true") { 
@@ -149,6 +152,8 @@ function main {
         [void]$out.Add($line)
     }
     $out | Sort-Object
+    $out | Sort-Object | Out-File .\admins.txt -Append -Encoding utf8
+    }
 }
 
 
