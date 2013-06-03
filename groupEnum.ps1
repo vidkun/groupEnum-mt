@@ -22,11 +22,15 @@
     {true|false} Print age of user's password in days. Default: false
 .PARAMETER g -group -rootGroupName
     <group name> group which to enumerate membership"
+.PARAMETER s -source -sourceFile
+    <file name> source file of hosts to iterate through
+.PARAMETER r -results -resultsFile
+    <file name> results file to write output to
 .LINK
-    https://github.com/Doct0rZ/groupEnum
+    https://github.com/vidkun/groupEnum
 .NOTES
-    Author: Neil Zimmerman (ncztch@rit.edu)
-    Date: 10.11.2012
+    Author: Vidkun
+    Date: 20130603
 .EXAMPLE
     .\groupEnum.ps1 -g "Administrators"
     This will dsiplay all of the users that inherit permissions from local Administrators group
@@ -39,9 +43,11 @@ param(
     [string]$domain           = $env:computername,
     [string]$printName        = "true",
     [string]$printSID         = "false",
-    [string]$printGroup       = "false",
+    [string]$printGroup       = "true",
     [string]$printDisabled    = "true",
     [string]$printPasswordAge = "false",
+    [string][alias("s","source")]$sourceFile = ".\hosts.txt",
+    [string][alias("r","results")]$resultsFile = ".\admins.txt",
     [Parameter(Mandatory=$true)][alias("g","group")]$rootGroupName
 );
 
@@ -66,7 +72,7 @@ function main {
         Exit
 	}
     
-    $machines = get-content .\hosts.txt
+    $machines = get-content $sourceFile
     foreach ($ComputerName in $machines) {
     
     # recursivley get members
@@ -82,7 +88,7 @@ function main {
                     "name" = "\" + $rootName;
                     "path" = "";
                     "sid" = getSID($rootGroupObj);
-                    "domain" = $domain
+                    "domain" = $ComputerName
 	}
     $groupStack.Push($rootNtObj)
     while($groupStack.Count -gt 0) {
@@ -152,7 +158,7 @@ function main {
         [void]$out.Add($line)
     }
     $out | Sort-Object
-    $out | Sort-Object | Out-File .\admins.txt -Append -Encoding utf8
+    $out | Sort-Object | Out-File $resultsFile -Append -Encoding utf8
     }
 }
 
