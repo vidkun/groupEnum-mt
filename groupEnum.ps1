@@ -1,13 +1,13 @@
-﻿[CmdletBinding(SupportsShouldProcess=$true)]
+[CmdletBinding(SupportsShouldProcess=$true)]
 <#
 .NAME
     groupEmun.ps1
 .SYNOPSIS
     Enumerate Windows group membership
 .DESCRIPTION
-    groupEnum will recursivley enumerate the membership of any specfifed group, returning a list of users only (no groups).
+    groupEnum will recursivley enumerate the membership of any specfifed group, returning a list of users only (no groups). Results will be printed to the screen and written out to both text and csv files.
 .SYNTAX
-    groupEmun.ps1 [-d | -domain <domain name>] [-printName {true | false}] [-printSID {true | false}] [-printGroup {true | false}] $syntax += " [-printDisabled {true | false}] [-printPasswordAge {true | false}] {-g | -group} <group name>
+    groupEmun.ps1 [-d | -domain <domain name>] [-printName {true | false}] [-printSID {true | false}] [-printGroup {true | false}] $syntax += " [-printDisabled {true | false}] [-printPasswordAge {true | false}] {-g | -group} <group name> {-s | -source} <source file> {-r | -results} <results file> {-c | -csv} <CSV file>
 .PARAMETER d
     domain of root group. Default: localhost
 .PARAMETER printName
@@ -21,15 +21,17 @@
 .PARAMETER printPasswordAge 
     {true|false} Print age of user's password in days. Default: false
 .PARAMETER g -group -rootGroupName
-    <group name> group which to enumerate membership"
+    <group name> group which to enumerate membership. Default: Administrators
 .PARAMETER s -source -sourceFile
-    <file name> source file of hosts to iterate through
+    <file name> source file of hosts to iterate through. Default: hosts.txt
 .PARAMETER r -results -resultsFile
-    <file name> results file to write output to
+    <file name> text file to write out results to. Default: admins.txt
+.PARAMETER c -csv -csvFile
+    <file name> CSV file to write results to in CSV format. Default: admins.csv
 .LINK
     https://github.com/vidkun/groupEnum
 .NOTES
-    Author: Vidkun
+    Author: vidkun & Doct0rZ
     Date: 20130603
 .EXAMPLE
     .\groupEnum.ps1 -g "Administrators"
@@ -46,9 +48,10 @@ param(
     [string]$printGroup       = "true",
     [string]$printDisabled    = "true",
     [string]$printPasswordAge = "false",
-    [string][alias("s","source")]$sourceFile = ".\hosts.txt",
-    [string][alias("r","results")]$resultsFile = ".\admins.txt",
-    [Parameter(Mandatory=$true)][alias("g","group")]$rootGroupName
+    [alias("s","source")][string]$sourceFile = ".\hosts.txt",
+    [alias("r","results")][string]$resultsFile = ".\admins.txt",
+    [alias("c","csv")][string]$csvFile = ".\admins.csv",
+    [alias("g","group")]$rootGroupName = "Administrators"
 );
 
 # declare some variables
@@ -82,6 +85,8 @@ function main {
         $rootName = $rootGroupObj.ToString()
 	}
     
+    $ComputerName
+
     $userTable = New-Object System.Collections.HashTable
     $groupStack = New-Object System.Collections.Stack
     $rootNtObj = @{ "ntobj" = $rootGroupObj;
@@ -157,8 +162,24 @@ function main {
         if (($printDisabled -like "true") -and $user["disabled"]) { $line += " [DISABLED]" }
         [void]$out.Add($line)
     }
+    
     $out | Sort-Object
     $out | Sort-Object | Out-File $resultsFile -Append -Encoding utf8
+
+    $csvout = @()
+    foreach ($user in $userTable.Values) {
+        $output = "" | Select Computer,Account,Path,SID,Age,Disabled
+        $output.Computer = $ComputerName
+        $output.Account = $user["domain"] + $user["name"]
+        $output.Path = $user["path"]
+        $output.Disabled = $user["disabled"]
+        $output.SID = $user["sid"]
+        $output.Age = $user["passwd_age"]
+
+        $csvout =  $csvout + $output       
+    
+    }
+    $csvout | Export-Csv $csvFile -Append -NoTypeInformation -Force 
     }
 }
 
