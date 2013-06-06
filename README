@@ -1,12 +1,12 @@
 #####################################################
 #               groupEmum-mt.ps1                    #
-#		Windows Group Membership Enumeration       	#
-#													#
-#  Author: vidkun									#
-#  GitHub: https://github.com/vidkun/groupEnum-mt	#
-#													#
-#  Based off original code from Doct0rZ at			#
-#  https://github.com/Doct0rZ/groupEnum				#
+#	Windows Group Membership Enumeration        #
+#						    #
+#  Author: vidkun				    #
+#  GitHub: https://github.com/vidkun/groupEnum-mt   #
+#						    #
+#  Based off original code from Doct0rZ at	    #
+#  https://github.com/Doct0rZ/groupEnum		    #
 #####################################################
 
 This is a multithreaded tool to fully enumerate the membership of any Windows 
@@ -39,14 +39,14 @@ script directly instead of calling it via Start-MultiThread.ps1.
 
 Options:
 
-	-h <hostname>					Host name of the machine you want to
-									enumerate groups on, default: localhost
+    -h <hostname>	            Host name of the machine you want to
+				    enumerate groups on, default: localhost
 
     -d <domain name>                specify the domain of the group you which
                                     to enumerate membership of, default: local
                                     
     -g <group name>                 The name of the group you wish to enumerate,
-									default: Administrators
+				    default: Administrators
     
     -verbose                        Provides verbose output, printing groups
                                     and users as they are found
@@ -64,8 +64,8 @@ Options:
     -printPasswordAge {true|false}  prints the each user's password age in
                                     days, default: true
 								
-	-c <csv file>					The name of the destination csv file
-									to write results to, default: .\$date.admins.csv
+    -c <csv file>		    The name of the destination csv file
+				    to write results to, default: .\$date.admins.csv
                                     
 Examples:
 
