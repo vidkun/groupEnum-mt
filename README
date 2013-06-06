@@ -1,44 +1,71 @@
-Based on the original groupEnum from Doct0rZ (original readme below). Attempting to modify it to iterate 
-through a list of hosts and write results to a file. 
+#####################################################
+#               groupEmum-mt.ps1                    #
+#		Windows Group Membership Enumeration       	#
+#													#
+#  Author: vidkun									#
+#  GitHub: https://github.com/vidkun/groupEnum-mt	#
+#													#
+#  Based off original code from Doct0rZ at			#
+#  https://github.com/Doct0rZ/groupEnum				#
+#####################################################
 
-========================================
+This is a multithreaded tool to fully enumerate the membership of any Windows 
+group, providing a list of user accounts only. This tool is able to move between 
+local and domain groups, and can even move between multiple domains so long as 
+you have permission to read group membership.
 
-#########################################
-#             groupEmum.ps1             #
-# Windows Group Membership Enumeration  #
-#########################################
+MULTITHREADED USAGE:
 
-Author: Neil Zimmeran
-Email:  nxz3937@gmail.com
-GitHub: https://github.com/Doct0rZ/groupEnum
+Currently, this tool must be called via the Start-MultiThread.ps1 launcher. If
+anyone has suggestions for getting the jobs handlers merged into the single
+script, I am certainly open to pull requests.
 
-This tool will fully enumerate the membership of any Windows group, providing
-a list of user accounts only. This tool is able to move between local and
-domain groups, and can even move between multiple domains so long as you have
-permission to read group membership.
+Drop Start-MultiThread.ps1, groupEnum-mt.ps1, and hosts.txt (optional) into
+the same directory. Edit Start-MultiThread.ps1 to change $machines to list
+the desired target machines to enumerate. Otherwise, comment out the current
+line and uncomment the other line to have it read from a list of machines
+at .\hosts.txt.
 
 Options:
+
+None currently.
+
+
+SINGLE-THREAD USAGE:
+
+This tool can be used single-threaded by simply running the groupEnum-mt.ps1
+script directly instead of calling it via Start-MultiThread.ps1. 
+
+
+Options:
+
+	-h <hostname>					Host name of the machine you want to
+									enumerate groups on, default: localhost
 
     -d <domain name>                specify the domain of the group you which
                                     to enumerate membership of, default: local
                                     
-    -g <group name>                 The name of the group you wish to enumerate
+    -g <group name>                 The name of the group you wish to enumerate,
+									default: Administrators
     
     -verbose                        Provides verbose output, printing groups
                                     and users as they are found
                                     
     -printName {true|false}         prints each users username, default: true
     
-    -printSID {true|false}          prints each user's SID, default: false
+    -printSID {true|false}          prints each user's SID, default: true
     
     -printGroup {true|false}        prints the group from which users inherit
-                                    membership, default: false
+                                    membership, default: true
                                     
     -printDisabled {true|false}     appends "[DISABLED]" to the user if their
                                     account is disabled, default: true
                                     
     -printPasswordAge {true|false}  prints the each user's password age in
-                                    days, default: false
+                                    days, default: true
+								
+	-c <csv file>					The name of the destination csv file
+									to write results to, default: .\$date.admins.csv
                                     
 Examples:
 
@@ -49,6 +76,24 @@ Examples:
         Prints the name and SID of each Domain Admin of the foo.bar domain
     
     .\groupEnum.ps1 -g "Domain Admins" -d "foo.bar" -printPasswordAge true
-        Prints the name and passwrod age of each Domain Admin in foo.bar
+        Prints the name and password age of each Domain Admin in foo.bar
 
-        
+
+Known Issues/Planned Changes:
+
+* It appears that groupEnum-mt may not be fully enumerating the group for some
+  reason. My test group has two machines where one is missing a local user account
+  from the results and the second is missing that same local user account and an
+  entire AD group from the results.
+
+* Running multithreaded is causing issues with writing the output to CSV. Results
+  are either not get written to file due to multiple threads accessing the file at
+  once, results are being written all jacked up on some lines, or writing fails 
+  due to file lock errors. Trying to move toward having the results all kicked back
+  to Start-MultiThread.ps1 and written out in single dump from there.
+
+* Planned: Combine both scripts into a single script
+
+* Planned: Add functionality to verify machine is alive before attempting to enumerate
+ 
+* Planned: Add option to query AD for list of computers to enumerate
