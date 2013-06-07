@@ -259,7 +259,7 @@ function global:getUserSID([System.Security.Principal.NTAccount]$o) {
 	# if user is local account get SID from the target machine
 	if ($h -eq $ComputerName) {
     	try {
-    	$usid = (Get-WmiObject win32_useraccount -ComputerName $h -Filter "$filter").sid
+    	$usid = (Get-WmiObject win32_useraccount -ComputerName $h -Filter "$filter" -Credential $creds).sid
 		} catch { }
     return $usid
 	}
@@ -283,7 +283,7 @@ function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
 	# if user is local account get SID from the target machine
 	if ($h -eq $ComputerName) {
     	try {
-    	$gsid = (Get-WmiObject win32_group -ComputerName $h -Filter "$filter").sid
+    	$gsid = (Get-WmiObject win32_group -ComputerName $h -Filter "$filter" -Credential $creds).sid
 		} catch { }
     	return $gsid
 	}
@@ -298,6 +298,8 @@ function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
 
 # call main if script called directly
 if ($MyInvocation.MyCommand.Name -eq $FileName) {
+	# getting SIDs for local account on remote machines requires local admin rights to the target machine
+	$creds = Get-Credential -Message "Please authenticate with an admin account"
     main $ComputerName
     Exit
 }
