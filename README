@@ -14,6 +14,8 @@ group, providing a list of user accounts only. This tool is able to move between
 local and domain groups, and can even move between multiple domains so long as 
 you have permission to read group membership.
 
+Requires PowerShell 3.0
+
 MULTITHREADED USAGE:
 
 Currently, this tool must be called via the Start-MultiThread.ps1 launcher. If

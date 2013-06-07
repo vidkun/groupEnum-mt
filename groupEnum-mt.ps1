@@ -44,7 +44,7 @@
 #define parameters
 param(
     [alias("d")]
-    [string]$domain           = $env:computername,
+    [string]$domain           = $ComputerName,
     [string]$printName        = "true",
     [string]$printSID         = "true",
     [string]$printGroup       = "true",
@@ -66,8 +66,8 @@ param(
 # Main function
 function global:main([string]$ComputerName) {
  
-    # check that group exists
-    if ($domain -eq $env:computername) {
+    # check that group exists, verify it is a group instead of user, and whether it's a local or domain group
+    if ($domain -eq $ComputerName) { 
         $rootGroupObj = new-object System.Security.Principal.NTAccount($rootGroupName)
 	} else {
         $rootGroupObj = new-object System.Security.Principal.NTAccount($domain, $rootGroupName)
@@ -79,23 +79,23 @@ function global:main([string]$ComputerName) {
         Exit
 	}
            
-    # recursively get members
+    # recursively get members if it is a valid group
     if ($rootGroupObj.ToString().Contains("\")) {
         $rootName = $rootGroupObj.ToString().Split("\")[1]
 	} else {
         $rootName = $rootGroupObj.ToString()
 	}
-    
-    #$ComputerName # for testing purposes
-    
+        
     $userTable = New-Object System.Collections.HashTable
     $groupStack = New-Object System.Collections.Stack
     $rootNtObj = @{ "ntobj" = $rootGroupObj;
                     "name" = "\" + $rootName;
                     "path" = "";
-                    "sid" = getSID($rootGroupObj);
+                    "sid" = getGroupSID($rootGroupObj);
                     "domain" = $ComputerName
 	}
+	
+	#add root group to the stack of groups
     $groupStack.Push($rootNtObj)
     while($groupStack.Count -gt 0) {
         # get the current group info
@@ -108,27 +108,46 @@ function global:main([string]$ComputerName) {
         $members = @($group.psbase.Invoke("Members"))
         Write-Verbose ("Getting members of group: \" + $currGroup['domain'] + $currGroup['name'])
         $members | foreach { 
+			# get the account name of all members in the group
             $memName = $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null)
+			# get the domain\machine name of the account. domain accounts give the domain, local accounts give the machine name
             $memdom = $_.GetType().InvokeMember("Parent", 'GetProperty', $null, $_, $null).split("/")[-1]
-            if ($memdom -eq $env:computername) {
+			# if member domain matches the target machine name, currObj is set to just the account name (for local accounts)
+            if ($memdom -eq $ComputerName) {
                 $currObj = new-object System.Security.Principal.NTAccount($memName)
+			# otherwise currObj is set created for the domain and account (for domain accounts)
 	        } else {
                 $currObj = new-object System.Security.Principal.NTAccount($memdom, $memName)
 	        }
 
-            $sid = getSID($currObj)
+            <#$sid = getSID($currObj)
             $newObj = @{    "ntobj" = $currObj;
                             "name" = "\" + $memName;
                             "path" = $path;
                             "sid" = $sid;
                             "domain" = $memdom
-            }
-            # if member is a group, add it to the stack
+            }#>
+
+            # if member is a group: get group's SID, build object, and add it to the stack
             if ( isGroup($currObj) ) {
+				$sid = getGroupSID($currObj)
+				$newObj = @{    "ntobj" = $currObj;
+	                            "name" = "\" + $memName;
+	                            "path" = $path;
+	                            "sid" = $sid;
+	                            "domain" = $memdom
+	            }
                 Write-Verbose ("Found group: \" + $newObj['domain'] + $newObj['name'])
                 $groupStack.Push($newObj)
-            # if member is a user
+            # if member is a user: get user's SID, build object, check disabled and password age, and add to userTable
 			} elseif ( isUser($currObj) ) {
+				$sid = getUserSID($currObj)
+				$newObj = @{    "ntobj" = $currObj;
+	                            "name" = "\" + $memName;
+	                            "path" = $path;
+	                            "sid" = $sid;
+	                            "domain" = $memdom
+	            }
                 Write-Verbose ("Found user: \" + $newObj['domain'] + $newObj['name'])
                 # check if user is disabled
                 $winnt = "WinNT://" + $newObj['domain'] +"/" + $newObj['name'] + ",user"
@@ -139,6 +158,12 @@ function global:main([string]$ComputerName) {
                     $userTable.Add($newObj['sid'], $newObj)
 				}
 			} elseif ($memdom -eq "NT AUTHORITY") {
+				$newObj = @{    "ntobj" = $currObj;
+	                            "name" = "\" + $memName;
+	                            "path" = $path;
+	                            "sid" = $sid;
+	                            "domain" = $memdom
+	            }
                 Write-Verbose ("Found object: " + $newObj['domain'] + $newObj['name'])
                 $newObj["disabled"] = $false
                 $newObj["passwd_age"] = "-1"
@@ -178,8 +203,6 @@ function global:main([string]$ComputerName) {
         $output.Age = $user["passwd_age"]
 
         $csvout =  $csvout + $output 
-           
-
     }
     $csvout | Export-Csv $csvFile -Append -NoTypeInformation -Force 
     $csvout
@@ -187,16 +210,16 @@ function global:main([string]$ComputerName) {
     
 }
 
-
-
 # determine if NT Object is a group
 function global:isGroup([System.Security.Principal.NTAccount]$o) {
     
+	# split "domain\account" into separate variable
     ($d, $g) = $o.ToString().split("\")
-
+	
+	#if object isn't domain\account format and only account name, move it to variable g and set d to machine name. usually means it is local not domain
     if ($g -eq $null) {
         $g = $d;
-        $d = $ENV:COMPUTERNAME;
+        $d = $ComputerName;
 	}
     try {
         [boolean]$result = [System.DirectoryServices.DirectoryEntry]::Exists("WinNT://$d/$g,group")
@@ -208,12 +231,14 @@ function global:isGroup([System.Security.Principal.NTAccount]$o) {
 
 # determine if NT Object is a user
 function global:isUser([System.Security.Principal.NTAccount]$o) {
-    
+	
+   	# split "domain\account" into separate variable
     ($d, $g) = $o.ToString().split("\")
-
+	
+	#if object isn't domain\account format and only account name, move it to variable g and set d to machine name. usually means it is local not domain
     if ($g -eq $null) {
         $g = $d;
-        $d = $ENV:COMPUTERNAME;
+        $d = $ComputerName;
 	}
     try {
         $result = [System.DirectoryServices.DirectoryEntry]::Exists("WinNT://$d/$g,user")
@@ -223,12 +248,52 @@ function global:isUser([System.Security.Principal.NTAccount]$o) {
 	}
 }
 
-# translate NTAccount object to SID
-function global:getSID([System.Security.Principal.NTAccount]$o) {
-    try {
-    $sid = $o.Translate([System.Security.Principal.SecurityIdentifier])
-	} catch { }
-    return $sid.value
+# translate user to SID
+function global:getUserSID([System.Security.Principal.NTAccount]$o) {
+	($h, $a) = $o.ToString().split("\")
+	if ($a -eq $null) {
+        $a = $h;
+        $h = $ComputerName;
+	}
+	$filter = "name= '" + $a + "'"
+	# if user is local account get SID from the target machine
+	if ($h -eq $ComputerName) {
+    	try {
+    	$usid = (Get-WmiObject win32_useraccount -ComputerName $h -Filter "$filter").sid
+		} catch { }
+    return $usid
+	}
+	# otherwise grab SID for domain user
+	else {
+		try {
+		$usid = $o.Translate([System.Security.Principal.SecurityIdentifier])
+		} catch { }
+		return $usid
+	}
+}
+
+# translate group to SID
+function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
+	($h, $a) = $o.ToString().split("\")
+	if ($a -eq $null) {
+        $a = $h;
+        $h = $ComputerName;
+	}
+	$filter = "name= '" + $a + "'"
+	# if user is local account get SID from the target machine
+	if ($h -eq $ComputerName) {
+    	try {
+    	$gsid = (Get-WmiObject win32_group -ComputerName $h -Filter "$filter").sid
+		} catch { }
+    	return $gsid
+	}
+	# otherwise grab SID for domain group
+	else {
+		try {
+		$gsid = $o.Translate([System.Security.Principal.SecurityIdentifier])
+		} catch { }
+		return $gsid
+	}
 }
 
 # call main if script called directly
