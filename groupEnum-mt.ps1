@@ -1,3 +1,4 @@
+$initialize = {
 [CmdletBinding(SupportsShouldProcess=$true)]
 <#
 .NAME
@@ -50,22 +51,19 @@ param(
     [string]$printGroup       = "true",
     [string]$printDisabled    = "true",
     [string]$printPasswordAge = "true",
-    #[string]$date             = $(Get-Date -format yyyyMMdd_HHmm), # uncomment if running standalone
-    [string]$date             = "", # uncomment if running multithreaded
+    [string]$date             = "",
     [alias("directory")][string]$Dir              = "",
-    #[alias("s","source")][string]$sourceFile = "$Dir\hosts.txt",
+    [alias("s","source")][string]$sourceFile = "$Dir\hosts.txt",
     [alias("r","results")][string]$resultsFile = "$Dir\$date.admins.txt",
     [alias("c","csv")][string]$csvFile = "$Dir\$date.admins.csv",
     [Parameter(Position=0)][alias("h","host")][string]$ComputerName = "localhost",
+    [Parameter(Position=1)][alias("credential")]$creds = "",
     [alias("g","group")]$rootGroupName = "Administrators"
 );
 
-# declare some variables
-[String]$FileName = "groupEnum-mt.ps1";    # name of the script file
-
 # Main function
 function global:main([string]$ComputerName) {
- 
+
     # check that group exists, verify it is a group instead of user, and whether it's a local or domain group
     if ($domain -eq $ComputerName) { 
         $rootGroupObj = new-object System.Security.Principal.NTAccount($rootGroupName)
@@ -119,14 +117,6 @@ function global:main([string]$ComputerName) {
 	        } else {
                 $currObj = new-object System.Security.Principal.NTAccount($memdom, $memName)
 	        }
-
-            <#$sid = getSID($currObj)
-            $newObj = @{    "ntobj" = $currObj;
-                            "name" = "\" + $memName;
-                            "path" = $path;
-                            "sid" = $sid;
-                            "domain" = $memdom
-            }#>
 
             # if member is a group: get group's SID, build object, and add it to the stack
             if ( isGroup($currObj) ) {
@@ -189,7 +179,7 @@ function global:main([string]$ComputerName) {
         [void]$out.Add($line)
     }
     
-    $out | Sort-Object
+    #$out | Sort-Object
     #$out | Sort-Object | Out-File $resultsFile -Append -Encoding utf8
 
     $csvout = @()
@@ -204,7 +194,7 @@ function global:main([string]$ComputerName) {
 
         $csvout =  $csvout + $output 
     }
-    $csvout | Export-Csv $csvFile -Append -NoTypeInformation -Force 
+    
     $csvout
     
     
@@ -296,10 +286,46 @@ function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
 	}
 }
 
-# call main if script called directly
-if ($MyInvocation.MyCommand.Name -eq $FileName) {
-	# getting SIDs for local account on remote machines requires local admin rights to the target machine
-	$creds = Get-Credential -Message "Please authenticate with an admin account"
-    main $ComputerName
-    Exit
 }
+	
+    $numCores = gwmi -Class win32_processor -Property "numberOfCores" | Select-Object -Property "numberOfCores"
+    $maxThreads = $numCores.numberOfCores * 2
+    $sleepTimer = 500
+    $date = Get-Date -format yyyyMMdd_HHmm
+    # getting SIDs for local account on remote machines requires local admin rights to the target machine
+    $creds = Get-Credential -Message "Please authenticate with an admin account"
+    $invocation = (Get-Variable MyInvocation).Value
+    $Dir = Split-Path $invocation.MyCommand.Path
+    $machines = Get-Content $sourceFile
+    $failFile = "$Dir\$date.failedHosts.txt"
+    $failedHosts = @()
+    Write-Progress -Activity "Killing existing jobs..."
+    Get-Job | Remove-Job -Force
+    Write-Progress -Activity "All jobs are dead!"
+    $i = 0
+
+    ForEach($ComputerName in $machines) {
+        # Check number of threads. If too many - take a nap
+        While ($(Get-Job -State running).count -ge $maxThreads) {
+            Write-Progress -Activity "Enumerating Groups" -Status "Waiting for threads to close" -CurrentOperation "$i threads created - $($(Get-Job -state running).count) threads open" -PercentComplete ($i / $machines.count * 100)
+            Start-Sleep -Milliseconds $sleepTimer
+        }
+
+        # Check if host is alive. if not, write failed host to file for later use
+        if (!(Test-Connection -ComputerName $ComputerName -BufferSize 16 -Count 1 -ea 0 -Quiet)) {
+            $failedHosts += $ComputerName
+            $ComputerName | Out-File $failFile -Append -Encoding utf8
+        }
+        else {
+        # Start jobs 
+  	    $i++
+        Start-Job -InitializationScript $initialize -ScriptBlock {param($ComputerName,$creds,$date,$Dir); $creds = $creds; $date = $date; $Dir = $Dir; $csvFile = "$Dir\$date.admins.csv"; main($ComputerName)} -ArgumentList $ComputerName,$creds,$date,$Dir -Name $ComputerName | Out-Null
+        Write-Progress -Activity "Enumerating Groups" -Status "Starting Threads" -CurrentOperation "$i threads created - $($(Get-Job -state running).count) threads open" -PercentComplete ($i / $machines.count * 100)
+        } 
+    }
+         
+        Get-Job | Wait-Job | Out-Null
+        Get-Job | Receive-Job | Select-Object -Property * -ExcludeProperty RunspaceID,PSComputerName,PSShowComputerName | Export-csv $Dir\$date.admins.csv -Append -NoTypeInformation -Force
+	    $failedHosts
+	
+        Exit
