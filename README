@@ -83,19 +83,22 @@ Examples:
 
 Known Issues/Planned Changes:
 
-* It appears that groupEnum-mt may not be fully enumerating the group for some
+* Passing parameters when calling script from CLI not working and moving param block breaks more.
+  For now, you have to hardcode the parameters you want in the script before running it.
+
+* FIXED: It appears that groupEnum-mt may not be fully enumerating the group for some
   reason. My test group has two machines where one is missing a local user account
   from the results and the second is missing that same local user account and an
   entire AD group from the results.
 
-* Running multithreaded is causing issues with writing the output to CSV. Results
+* FIXED: Running multithreaded is causing issues with writing the output to CSV. Results
   are either not get written to file due to multiple threads accessing the file at
   once, results are being written all jacked up on some lines, or writing fails 
   due to file lock errors. Trying to move toward having the results all kicked back
   to Start-MultiThread.ps1 and written out in single dump from there.
 
-* Planned: Combine both scripts into a single script
+* DONE: Planned: Combine both scripts into a single script
 
-* Planned: Add functionality to verify machine is alive before attempting to enumerate
+* DONE: Planned: Add functionality to verify machine is alive before attempting to enumerate
  
 * Planned: Add option to query AD for list of computers to enumerate

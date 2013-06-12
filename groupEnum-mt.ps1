@@ -165,7 +165,7 @@ function global:main([string]$ComputerName) {
 	}
 
     # print users
-    $out = New-Object System.Collections.ArrayList
+<#    $out = New-Object System.Collections.ArrayList
     foreach ($user in $userTable.Values) {
         $line = $ComputerName + ": " + "\" + $user['domain']
         if ($printGroup -like "true") { $line += $user['path']}
@@ -181,7 +181,7 @@ function global:main([string]$ComputerName) {
     
     #$out | Sort-Object
     #$out | Sort-Object | Out-File $resultsFile -Append -Encoding utf8
-
+#>
     $csvout = @()
     foreach ($user in $userTable.Values) {
         $output = "" | Select Computer,Account,Path,SID,Age,Disabled
@@ -247,7 +247,7 @@ function global:getUserSID([System.Security.Principal.NTAccount]$o) {
 	}
 	$filter = "name= '" + $a + "'"
 	# if user is local account get SID from the target machine
-	if ($h -eq $ComputerName) {
+	if (($h -eq $ComputerName) -and ($h -ne $env:computername)) {
     	try {
     	$usid = (Get-WmiObject win32_useraccount -ComputerName $h -Filter "$filter" -Credential $creds).sid
 		} catch { }
@@ -271,7 +271,7 @@ function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
 	}
 	$filter = "name= '" + $a + "'"
 	# if user is local account get SID from the target machine
-	if ($h -eq $ComputerName) {
+	if (($h -eq $ComputerName) -and ($h -ne $env:computername)) {
     	try {
     	$gsid = (Get-WmiObject win32_group -ComputerName $h -Filter "$filter" -Credential $creds).sid
 		} catch { }
@@ -296,6 +296,8 @@ function global:getGroupSID([System.Security.Principal.NTAccount]$o) {
     $creds = Get-Credential -Message "Please authenticate with an admin account"
     $invocation = (Get-Variable MyInvocation).Value
     $Dir = Split-Path $invocation.MyCommand.Path
+	if ($csvFile -eq $null) {$csvFile = "$Dir\$date.admins.csv"}
+	if ($sourceFile -eq $null) {$sourceFile = "$Dir\hosts.txt"}
     $machines = Get-Content $sourceFile
     $failFile = "$Dir\$date.failedHosts.txt"
     $failedHosts = @()
