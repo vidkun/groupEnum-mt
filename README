@@ -102,3 +102,5 @@ Known Issues/Planned Changes:
 * DONE: Planned: Add functionality to verify machine is alive before attempting to enumerate
  
 * Planned: Add option to query AD for list of computers to enumerate
+
+* Planned: Update the status messages to provide overall progress and progress of each pass
